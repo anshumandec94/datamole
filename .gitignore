@@ -1,0 +1,4 @@
+#ignore pycache files
+__pycache__/
+#can get generated in sub-directories so ignore all
+**/__pycache__/
