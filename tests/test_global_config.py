@@ -9,8 +9,7 @@ import yaml
 from datamole.storage import (
     BackendType,
     create_storage_backend,
-    LocalStorageBackend,
-    StorageError
+    LocalStorageBackend
 )
 from datamole.config.global_config import GlobalConfig
 
@@ -180,7 +179,7 @@ class TestGlobalConfig:
     
     def test_initialize_default_config(self, clean_datamole_dir):
         """Test initializing default config."""
-        global_config = GlobalConfig.initialize_defaults()
+        _ = GlobalConfig.initialize_defaults()
         
         config_path = GlobalConfig.get_config_path()
         assert config_path.exists()
@@ -227,7 +226,7 @@ class TestStorageBackendFactory:
     def test_create_backend_no_config(self, clean_datamole_dir):
         """Test creating backend when not configured."""
         with pytest.raises(FileNotFoundError, match="Global datamole configuration not found"):
-            global_config = GlobalConfig.load()
+            _ = GlobalConfig.load()
     
     def test_create_backend_not_implemented(self, clean_datamole_dir):
         """Test creating backend types that aren't implemented yet."""

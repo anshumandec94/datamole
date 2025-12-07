@@ -11,7 +11,7 @@ Supports multiple storage backends:
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 from enum import Enum
 import shutil
 

@@ -45,7 +45,6 @@ class GlobalConfig:
     @staticmethod
     def get_config_dir() -> Path:
         """Get the global datamole configuration directory (~/.datamole)."""
-        import os
         home = Path(os.environ.get('HOME', str(Path.home())))
         return home / ".datamole"
     
