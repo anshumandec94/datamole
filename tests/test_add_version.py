@@ -6,12 +6,12 @@ import pytest
 import os
 
 from datamole.core import DataMole
-from datamole.config import DataMoleFileConfig
+from datamole.config.project import ProjectConfig
 from datamole.storage import (
     BackendType,
-    save_backend_config,
     StorageError
 )
+from datamole.config.global_config import GlobalConfig
 
 
 @pytest.fixture
@@ -35,7 +35,9 @@ def initialized_project(temp_project, temp_home):
     """Create an initialized datamole project."""
     # Set up global config with local backend
     storage_path = temp_home / "datamole_storage"
-    save_backend_config(BackendType.LOCAL, str(storage_path))
+    global_config = GlobalConfig.initialize_defaults()
+    global_config.set_backend_config(BackendType.LOCAL, storage_path=str(storage_path))
+    global_config.save()
     
     # Initialize project
     dtm = DataMole()
@@ -105,7 +107,7 @@ class TestAddVersionSuccess:
         dtm.add_version(message="Initial version")
         
         # Verify .datamole was updated
-        config = DataMoleFileConfig.load(project_dir / ".datamole")
+        config = ProjectConfig.load(project_dir / ".datamole")
         
         assert len(config.versions) == 1
         assert config.current_version is not None
@@ -119,7 +121,7 @@ class TestAddVersionSuccess:
         
         dtm.add_version()
         
-        config = DataMoleFileConfig.load(project_dir / ".datamole")
+        config = ProjectConfig.load(project_dir / ".datamole")
         version_hash = config.versions[0]["hash"]
         
         assert len(version_hash) == 8
@@ -132,7 +134,7 @@ class TestAddVersionSuccess:
         dtm.add_version()
         
         # Get version hash
-        config = DataMoleFileConfig.load(project_dir / ".datamole")
+        config = ProjectConfig.load(project_dir / ".datamole")
         version_hash = config.versions[0]["hash"]
         
         # Verify files exist in storage
@@ -148,7 +150,7 @@ class TestAddVersionSuccess:
         
         dtm.add_version()
         
-        config = DataMoleFileConfig.load(project_dir / ".datamole")
+        config = ProjectConfig.load(project_dir / ".datamole")
         
         # Message should not be in version entry if not provided
         assert "message" not in config.versions[0] or config.versions[0]["message"] is None
@@ -159,7 +161,7 @@ class TestAddVersionSuccess:
         
         # Add first version
         dtm.add_version(message="Version 1")
-        config1 = DataMoleFileConfig.load(project_dir / ".datamole")
+        config1 = ProjectConfig.load(project_dir / ".datamole")
         hash1 = config1.current_version
         
         # Modify data
@@ -167,7 +169,7 @@ class TestAddVersionSuccess:
         
         # Add second version
         dtm.add_version(message="Version 2")
-        config2 = DataMoleFileConfig.load(project_dir / ".datamole")
+        config2 = ProjectConfig.load(project_dir / ".datamole")
         hash2 = config2.current_version
         
         # Verify both versions exist
@@ -191,7 +193,7 @@ class TestAddVersionTransactionSafety:
         (data_dir / "file.txt").write_text("content")
         
         # Load initial config
-        initial_config = DataMoleFileConfig.load(project_dir / ".datamole")
+        initial_config = ProjectConfig.load(project_dir / ".datamole")
         initial_versions = initial_config.versions.copy()
         initial_current = initial_config.current_version
         
@@ -209,7 +211,7 @@ class TestAddVersionTransactionSafety:
             dtm.add_version(message="This should fail")
         
         # Verify .datamole was NOT modified
-        final_config = DataMoleFileConfig.load(project_dir / ".datamole")
+        final_config = ProjectConfig.load(project_dir / ".datamole")
         assert final_config.versions == initial_versions
         assert final_config.current_version == initial_current
         
@@ -226,7 +228,7 @@ class TestAddVersionHashCollision:
         
         # Add first version to get a hash
         dtm.add_version()
-        config = DataMoleFileConfig.load(project_dir / ".datamole")
+        config = ProjectConfig.load(project_dir / ".datamole")
         existing_hash = config.versions[0]["hash"]
         
         # Mock secrets.token_hex to return existing hash first, then different hash
@@ -247,7 +249,7 @@ class TestAddVersionHashCollision:
         dtm.add_version()
         
         # Verify second version has different hash
-        config = DataMoleFileConfig.load(project_dir / ".datamole")
+        config = ProjectConfig.load(project_dir / ".datamole")
         assert len(config.versions) == 2
         assert config.versions[1]["hash"] != existing_hash
         assert call_count[0] >= 2  # Called at least twice due to collision
@@ -266,7 +268,7 @@ class TestAddVersionMultipleVersions:
             dtm.add_version(message=f"Version {i+1}")
         
         # Verify all versions are tracked
-        config = DataMoleFileConfig.load(project_dir / ".datamole")
+        config = ProjectConfig.load(project_dir / ".datamole")
         assert len(config.versions) == 3
         
         # Verify each version has unique hash
