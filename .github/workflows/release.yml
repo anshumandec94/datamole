@@ -29,7 +29,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        uv sync
+        uv venv
         uv pip install -e ".[dev]"
     
     - name: Run tests
@@ -39,6 +39,10 @@ jobs:
     - name: Build package
       run: |
         uv build
+    
+    - name: Install package to get version
+      run: |
+        uv pip install dist/*.whl
     
     - name: Get version
       id: version
