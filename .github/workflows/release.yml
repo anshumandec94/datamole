@@ -1,0 +1,77 @@
+name: Release to PyPI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build and Publish to PyPI
+    runs-on: ubuntu-latest
+    # Only run on tags or direct pushes to main
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # For setuptools-scm
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+    
+    - name: Install dependencies
+      run: |
+        uv sync
+        uv pip install -e ".[dev]"
+    
+    - name: Run tests
+      run: |
+        uv run pytest -v
+    
+    - name: Build package
+      run: |
+        uv build
+    
+    - name: Get version
+      id: version
+      run: |
+        VERSION=$(uv run python -c "import datamole; print(datamole.__version__)")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Building version: $VERSION"
+    
+    - name: Check if this is a tagged release
+      id: check_tag
+      run: |
+        if [[ $GITHUB_REF == refs/tags/v* ]]; then
+          echo "is_tag=true" >> $GITHUB_OUTPUT
+          echo "This is a tagged release"
+        else
+          echo "is_tag=false" >> $GITHUB_OUTPUT
+          echo "This is a development release"
+        fi
+    
+    - name: Publish to PyPI (Tagged Release)
+      if: steps.check_tag.outputs.is_tag == 'true'
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        uv pip install twine
+        uv run twine upload dist/*
+    
+    - name: Create GitHub Release
+      if: steps.check_tag.outputs.is_tag == 'true'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/*
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
