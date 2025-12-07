@@ -10,8 +10,9 @@ from pathlib import Path
 import yaml
 from typing import Optional
 
-from datamole.config import DataMoleFileConfig
-from datamole.storage import BackendType
+from datamole.config import ProjectConfig
+from datamole.config.global_config import GlobalConfig
+from datamole.storage import BackendType, create_storage_backend, StorageError
 
 
 class DataMole:
@@ -26,7 +27,7 @@ class DataMole:
         self.auth_token = None
         self.project_name = os.path.basename(os.getcwd())
         self.datamole_file = os.path.join(os.getcwd(), ".datamole")
-        self._config = None  # Lazy-loaded DataMoleFileConfig
+        self._config = None  # Lazy-loaded ProjectConfig
         self._load_config()
 
     def _load_config(self):
@@ -43,12 +44,12 @@ class DataMole:
                                 self.auth_token = v.strip()
     
     @property
-    def config(self) -> DataMoleFileConfig:
-        """Lazy-load and return the DataMoleFileConfig instance."""
+    def config(self) -> ProjectConfig:
+        """Lazy-load and return the ProjectConfig instance."""
         if self._config is None:
             if not os.path.exists(self.datamole_file):
                 raise RuntimeError("No .datamole file found. Run 'dtm init' first.")
-            self._config = DataMoleFileConfig.load(self.datamole_file)
+            self._config = ProjectConfig.load(self.datamole_file)
         return self._config
 
     def init(self, data_dir: str = "data", no_pull: bool = False,
@@ -72,21 +73,18 @@ class DataMole:
             - Verifies backend is accessible via backend.setup()
             - Auto-downloads current_version unless no_pull=True
         """
-        from datamole.storage import (
-            create_storage_backend, 
-            BackendType, 
-            StorageError,
-            initialize_default_config
-        )
-        
-        # Ensure global config exists
-        initialize_default_config()
+        # Load global config (will fail with helpful message if not configured)
+        try:
+            global_config = GlobalConfig.load()
+        except FileNotFoundError as e:
+            print(str(e))
+            raise
         # Case B: Existing .datamole file
         if os.path.exists(self.datamole_file):
             print(f"Found existing .datamole file for project '{self.project_name}'.")
             
             # Load the config
-            self._config = DataMoleFileConfig.load(self.datamole_file)
+            self._config = ProjectConfig.load(self.datamole_file)
             
             if not self._config.backend_type:
                 raise ValueError(".datamole file missing backend_type. File may be corrupted.")
@@ -94,12 +92,12 @@ class DataMole:
             # Verify backend is configured and accessible
             try:
                 backend_enum = BackendType.from_string(self._config.backend_type)
-                storage_backend = create_storage_backend(backend_enum)
+                backend_config = global_config.get_backend_config(backend_enum)
+                storage_backend = create_storage_backend(backend_enum, backend_config)
                 storage_backend.setup(self.project_name)
                 print(f"Using {self._config.backend_type} backend.")
-            except StorageError as e:
+            except (StorageError, RuntimeError) as e:
                 print(f"Error: {e}")
-                print(f"Configure backend with: dtm config --backend {self._config.backend_type}")
                 raise
             
             # Auto-pull current version unless disabled
@@ -122,10 +120,10 @@ class DataMole:
         # Validate and load backend
         try:
             backend_enum = BackendType.from_string(backend)
-            storage_backend = create_storage_backend(backend_enum)
-        except (ValueError, StorageError) as e:
+            backend_config = global_config.get_backend_config(backend_enum)
+            storage_backend = create_storage_backend(backend_enum, backend_config)
+        except (ValueError, StorageError, RuntimeError) as e:
             print(f"Error: {e}")
-            print(f"Configure backend with: dtm config --backend {backend}")
             raise
         
         # Set up storage for this project
@@ -137,7 +135,7 @@ class DataMole:
             raise
         
         # Create .datamole file
-        self._config = DataMoleFileConfig.create(
+        self._config = ProjectConfig.create(
             file_path=self.datamole_file,
             project=self.project_name,
             data_directory=data_dir,
@@ -165,21 +163,34 @@ class DataMole:
         Saves configuration to ~/.datamole/config.yaml
         This config is used by all projects using this backend type.
         """
-        from datamole.storage import BackendType, save_backend_config
-        
         try:
             backend_enum = BackendType.from_string(backend)
         except ValueError as e:
             print(f"Error: {e}")
             return
         
+        # Load or create global config
+        try:
+            global_config = GlobalConfig.load()
+        except FileNotFoundError:
+            global_config = GlobalConfig.initialize_defaults()
+        
+        # Build backend config
+        config_dict = {'remote_uri': remote_uri}
+        if credentials_path:
+            config_dict['credentials_path'] = credentials_path
+        
+        # For local backend, use storage_path instead of remote_uri
+        if backend_enum == BackendType.LOCAL:
+            config_dict = {'storage_path': remote_uri}
+        
         # Save to global config
-        save_backend_config(backend_enum, remote_uri, credentials_path)
+        global_config.set_backend_config(backend_enum, **config_dict)
+        global_config.save()
         
         print(f"Configured {backend} backend in ~/.datamole/config.yaml:")
-        print(f"  - remote_uri: {remote_uri}")
-        if credentials_path:
-            print(f"  - credentials_path: {credentials_path}")
+        for key, value in config_dict.items():
+            print(f"  - {key}: {value}")
         print("\nThis backend can now be used across all datamole projects.")
 
     def add_version(self, message: Optional[str] = None, tag: Optional[str] = None):
@@ -203,8 +214,6 @@ class DataMole:
             ValueError: If data_directory is empty or tag is invalid/duplicate
             StorageError: If upload fails
         """
-        from datamole.storage import create_storage_backend, StorageError
-        
         # Ensure we're initialized
         config = self.config
         
@@ -253,9 +262,11 @@ class DataMole:
         
         # Load storage backend
         try:
+            global_config = GlobalConfig.load()
             backend_enum = BackendType.from_string(config.backend_type)
-            storage_backend = create_storage_backend(backend_enum)
-        except (ValueError, StorageError) as e:
+            backend_config = global_config.get_backend_config(backend_enum)
+            storage_backend = create_storage_backend(backend_enum, backend_config)
+        except (ValueError, StorageError, RuntimeError, FileNotFoundError) as e:
             raise RuntimeError(f"Failed to load storage backend: {e}") from e
         
         # Prepare remote path: project/hash
@@ -315,8 +326,6 @@ class DataMole:
             ValueError: If hash prefix matches multiple versions
             StorageError: If download fails
         """
-        from datamole.storage import create_storage_backend, StorageError
-        
         # Ensure we're initialized
         config = self.config
         
@@ -394,9 +403,11 @@ class DataMole:
         
         # Load storage backend
         try:
+            global_config = GlobalConfig.load()
             backend_enum = BackendType.from_string(config.backend_type)
-            storage_backend = create_storage_backend(backend_enum)
-        except (ValueError, StorageError) as e:
+            backend_config = global_config.get_backend_config(backend_enum)
+            storage_backend = create_storage_backend(backend_enum, backend_config)
+        except (ValueError, StorageError, RuntimeError, FileNotFoundError) as e:
             raise RuntimeError(f"Failed to load storage backend: {e}") from e
         
         # Prepare remote path: project/hash

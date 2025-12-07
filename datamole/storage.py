@@ -14,8 +14,6 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 from enum import Enum
 import shutil
-import os
-import yaml
 
 
 class BackendType(Enum):
@@ -277,138 +275,43 @@ class LocalStorageBackend(StorageBackend):
         return version_path.exists() and version_path.is_dir()
 
 
-def get_datamole_dir() -> Path:
-    """Get the datamole configuration directory (~/.datamole)."""
-    home = Path(os.environ.get('HOME', str(Path.home())))
-    datamole_dir = home / ".datamole"
-    datamole_dir.mkdir(parents=True, exist_ok=True)
-    return datamole_dir
-
-
-def get_config_path() -> Path:
-    """Get the path to the global config file."""
-    return get_datamole_dir() / "config.yaml"
-
-
-def load_backend_config(backend_type: BackendType) -> Dict[str, Any]:
-    """
-    Load backend configuration from global config file.
-    
-    Args:
-        backend_type: Type of backend to load config for
-        
-    Returns:
-        Dict with backend configuration (remote_uri, credentials_path, etc.)
-        
-    Raises:
-        StorageError: If config file doesn't exist or backend not configured
-    """
-    config_path = get_config_path()
-    
-    if not config_path.exists():
-        raise StorageError(
-            f"Global config file not found at {config_path}. "
-            f"Run 'dtm config --backend {backend_type.value}' to configure."
-        )
-    
-    with open(config_path) as f:
-        config = yaml.safe_load(f) or {}
-    
-    backends = config.get("backends", {})
-    backend_config = backends.get(backend_type.value)
-    
-    if not backend_config:
-        raise StorageError(
-            f"Backend '{backend_type.value}' not configured. "
-            f"Run 'dtm config --backend {backend_type.value}' to configure."
-        )
-    
-    return backend_config
-
-
-def save_backend_config(backend_type: BackendType, remote_uri: str, 
-                       credentials_path: Optional[str] = None) -> None:
-    """
-    Save backend configuration to global config file.
-    
-    Args:
-        backend_type: Type of backend to configure
-        remote_uri: Remote URI for the backend
-        credentials_path: Optional path to credentials file
-    """
-    config_path = get_config_path()
-    
-    # Load existing config or create new
-    if config_path.exists():
-        with open(config_path) as f:
-            config = yaml.safe_load(f) or {}
-    else:
-        config = {}
-    
-    # Ensure backends section exists
-    if "backends" not in config:
-        config["backends"] = {}
-    
-    # Update backend config
-    config["backends"][backend_type.value] = {
-        "remote_uri": remote_uri
-    }
-    
-    if credentials_path:
-        config["backends"][backend_type.value]["credentials_path"] = credentials_path
-    
-    # Save config
-    with open(config_path, 'w') as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-
-
-def initialize_default_config() -> None:
-    """
-    Initialize default config file with local backend.
-    
-    This should be called on package install or first use.
-    """
-    config_path = get_config_path()
-    
-    # Don't overwrite existing config
-    if config_path.exists():
-        return
-    
-    # Create default config with local backend
-    default_storage = get_datamole_dir() / "storage"
-    save_backend_config(BackendType.LOCAL, str(default_storage))
-
-
-def create_storage_backend(backend_type: BackendType) -> StorageBackend:
+def create_storage_backend(backend_type: BackendType, backend_config: Dict[str, Any]) -> StorageBackend:
     """
     Factory function to create storage backend instances.
     
-    Loads backend configuration from global config file.
-    
     Args:
         backend_type: Type of backend to create
+        backend_config: Backend configuration dict from GlobalConfig
         
     Returns:
         StorageBackend instance
         
     Raises:
-        StorageError: If backend config not found or backend not implemented
+        StorageError: If backend not implemented
     """
-    # Load backend config from global config
-    backend_config = load_backend_config(backend_type)
-    remote_uri = backend_config["remote_uri"]
-    # credentials_path = backend_config.get("credentials_path")  # TODO: Use when implementing cloud backends
-    
     if backend_type == BackendType.LOCAL:
-        return LocalStorageBackend(remote_uri)
+        storage_path = backend_config.get("storage_path")
+        if not storage_path:
+            raise StorageError(
+                "Local backend configuration missing 'storage_path'.\n"
+                "Please run: dtm config --backend local --storage-path <path>"
+            )
+        return LocalStorageBackend(storage_path)
+    
     elif backend_type == BackendType.GCS:
         # TODO: Implement GCS backend
+        # Will use backend_config['service_account_json'], backend_config['default_bucket'], etc.
         raise NotImplementedError("GCS backend not yet implemented")
+    
     elif backend_type == BackendType.S3:
         # TODO: Implement S3 backend
+        # Will use backend_config['aws_profile'], backend_config['default_bucket'], etc.
         raise NotImplementedError("S3 backend not yet implemented")
+    
     elif backend_type == BackendType.AZURE:
         # TODO: Implement Azure backend
+        # Will use backend_config credentials
         raise NotImplementedError("Azure backend not yet implemented")
+    
     else:
         raise StorageError(f"Unsupported backend type: {backend_type}")
