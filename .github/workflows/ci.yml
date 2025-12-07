@@ -91,10 +91,18 @@ jobs:
       run: |
         uv build
     
+    - name: Install dependencies for checking
+      run: |
+        uv venv
+        uv pip install twine
+    
     - name: Check package
       run: |
-        uv pip install twine
         uv run twine check dist/*
+    
+    - name: Install package to check version
+      run: |
+        uv pip install dist/*.whl
     
     - name: Show version
       run: |
