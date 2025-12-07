@@ -50,7 +50,7 @@ def test_init_creates_datamole_file(temp_repo):
     dtm.init()
     assert os.path.exists(".datamole")
     with open(".datamole") as f:
-        meta = yaml.load(f)
+        meta = yaml.safe_load(f)
     assert meta["project"] == os.path.basename(temp_repo)
     assert meta["versions"] == []
 

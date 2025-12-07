@@ -293,7 +293,7 @@ class DataMole:
             print("No .datamole file found.")
             return
         with open(self.datamole_file) as f:
-            meta = yaml.load(f)
+            meta = yaml.safe_load(f)
         for v in meta.get("versions", []):
             print(v)
 

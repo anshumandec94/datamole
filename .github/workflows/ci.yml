@@ -60,7 +60,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        uv pip install ruff
+        uv sync --dev
     
     - name: Run ruff
       run: |
