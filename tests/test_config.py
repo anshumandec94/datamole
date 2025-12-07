@@ -1,5 +1,5 @@
 """
-Unit tests for DataMoleFileConfig class.
+Unit tests for ProjectConfig class.
 Tests the YAML loading, saving, validation, and helper methods.
 """
 
@@ -7,7 +7,7 @@ import os
 import tempfile
 import pytest
 import yaml
-from datamole.config import DataMoleFileConfig
+from datamole.config.project import ProjectConfig
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def test_config_create_new(temp_dir):
     """Test creating a new .datamole config file."""
     config_path = os.path.join(temp_dir, ".datamole")
     
-    config = DataMoleFileConfig.create(
+    config = ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"
@@ -42,7 +42,7 @@ def test_config_validates_relative_path(temp_dir):
     config_path = os.path.join(temp_dir, ".datamole")
     
     with pytest.raises(ValueError, match="must be a relative path"):
-        DataMoleFileConfig.create(
+        ProjectConfig.create(
             file_path=config_path,
             project="test_project",
             data_directory="/absolute/path"
@@ -54,14 +54,14 @@ def test_config_save_and_load(temp_dir):
     config_path = os.path.join(temp_dir, ".datamole")
     
     # Create and save
-    DataMoleFileConfig.create(
+    ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"
     )
     
     # Load it back
-    loaded_config = DataMoleFileConfig.load(config_path)
+    loaded_config = ProjectConfig.load(config_path)
     
     assert loaded_config.project == "test_project"
     assert loaded_config.data_directory == "data"
@@ -73,7 +73,7 @@ def test_config_yaml_format(temp_dir):
     """Test that the saved YAML has correct structure."""
     config_path = os.path.join(temp_dir, ".datamole")
     
-    DataMoleFileConfig.create(
+    ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"
@@ -93,7 +93,7 @@ def test_config_add_version_entry(temp_dir):
     """Test adding a version entry."""
     config_path = os.path.join(temp_dir, ".datamole")
     
-    config = DataMoleFileConfig.create(
+    config = ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"
@@ -112,7 +112,7 @@ def test_config_add_version_entry(temp_dir):
     assert config.versions[0]["message"] == "Initial version"
     
     # Verify it was saved
-    loaded = DataMoleFileConfig.load(config_path)
+    loaded = ProjectConfig.load(config_path)
     assert len(loaded.versions) == 1
     assert loaded.versions[0]["hash"] == "abc123"
 
@@ -121,7 +121,7 @@ def test_config_add_version_without_message(temp_dir):
     """Test adding a version entry without a message."""
     config_path = os.path.join(temp_dir, ".datamole")
     
-    config = DataMoleFileConfig.create(
+    config = ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"
@@ -141,7 +141,7 @@ def test_config_get_latest_version(temp_dir):
     """Test getting the latest version."""
     config_path = os.path.join(temp_dir, ".datamole")
     
-    config = DataMoleFileConfig.create(
+    config = ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"
@@ -165,7 +165,7 @@ def test_config_has_version(temp_dir):
     """Test checking if a version exists."""
     config_path = os.path.join(temp_dir, ".datamole")
     
-    config = DataMoleFileConfig.create(
+    config = ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"
@@ -181,7 +181,7 @@ def test_config_get_version_info(temp_dir):
     """Test retrieving version metadata."""
     config_path = os.path.join(temp_dir, ".datamole")
     
-    config = DataMoleFileConfig.create(
+    config = ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"
@@ -207,7 +207,7 @@ def test_config_get_absolute_data_path(temp_dir):
     """Test resolving data_directory to absolute path."""
     config_path = os.path.join(temp_dir, ".datamole")
     
-    config = DataMoleFileConfig.create(
+    config = ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"
@@ -223,7 +223,7 @@ def test_config_get_absolute_data_path_nested(temp_dir):
     """Test resolving nested data_directory path."""
     config_path = os.path.join(temp_dir, ".datamole")
     
-    config = DataMoleFileConfig.create(
+    config = ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="datasets/raw"
@@ -239,7 +239,7 @@ def test_config_update_current_version(temp_dir):
     """Test updating current_version field."""
     config_path = os.path.join(temp_dir, ".datamole")
     
-    config = DataMoleFileConfig.create(
+    config = ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"
@@ -250,20 +250,20 @@ def test_config_update_current_version(temp_dir):
     config.save()
     
     # Load and verify
-    loaded = DataMoleFileConfig.load(config_path)
+    loaded = ProjectConfig.load(config_path)
     assert loaded.current_version == "abc123"
 
 
 def test_config_load_nonexistent_file():
     """Test loading a non-existent config file."""
     with pytest.raises(FileNotFoundError, match="No .datamole file found"):
-        DataMoleFileConfig.load("/nonexistent/path/.datamole")
+        ProjectConfig.load("/nonexistent/path/.datamole")
 
 
 def test_config_create_in_nonexistent_directory():
     """Test creating config in non-existent directory."""
     with pytest.raises(FileNotFoundError, match="Directory does not exist"):
-        DataMoleFileConfig.create(
+        ProjectConfig.create(
             file_path="/nonexistent/dir/.datamole",
             project="test_project"
         )
@@ -274,7 +274,7 @@ def test_config_prevents_duplicate_creation(temp_dir):
     config_path = os.path.join(temp_dir, ".datamole")
     
     # Create first time
-    DataMoleFileConfig.create(
+    ProjectConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"
@@ -282,7 +282,7 @@ def test_config_prevents_duplicate_creation(temp_dir):
     
     # Try to create again
     with pytest.raises(FileExistsError, match="File already exists"):
-        DataMoleFileConfig.create(
+        ProjectConfig.create(
             file_path=config_path,
             project="another_project",
             data_directory="other_data"
