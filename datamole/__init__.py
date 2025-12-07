@@ -6,6 +6,5 @@ except ImportError:
     __version__ = "0.1.0.dev0"
 
 from datamole.core import DataMole
-from datamole.config import DataMoleFileConfig
 
-__all__ = ["DataMole", "DataMoleFileConfig", "__version__"]
+__all__ = ["DataMole", "__version__"]

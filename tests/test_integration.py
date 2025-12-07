@@ -9,11 +9,9 @@ import os
 import shutil
 
 from datamole.core import DataMole
-from datamole.config import DataMoleFileConfig
-from datamole.storage import (
-    BackendType,
-    save_backend_config,
-)
+from datamole.config.project import ProjectConfig
+from datamole.storage import BackendType
+from datamole.config.global_config import GlobalConfig
 
 
 class TestDataOwnerWorkflow:
@@ -36,7 +34,7 @@ class TestDataOwnerWorkflow:
         datamole_path = temp_project / ".datamole"
         assert datamole_path.exists()
         
-        config = DataMoleFileConfig.load(datamole_path)
+        config = ProjectConfig.load(datamole_path)
         assert config.project == "test_project"
         assert config.data_directory == "data"
         assert config.backend_type == "local"
@@ -58,7 +56,7 @@ class TestDataOwnerWorkflow:
         dtm.add_version(message="Initial dataset")
         
         # Step 4: Verify .datamole was updated
-        config = DataMoleFileConfig.load(datamole_path)
+        config = ProjectConfig.load(datamole_path)
         assert len(config.versions) == 1
         assert config.current_version is not None
         
@@ -82,7 +80,7 @@ class TestDataOwnerWorkflow:
         dtm.add_version(message="Added validation set")
         
         # Verify second version
-        config = DataMoleFileConfig.load(datamole_path)
+        config = ProjectConfig.load(datamole_path)
         assert len(config.versions) == 2
         
         version2_hash = config.versions[1]["hash"]
@@ -111,7 +109,9 @@ class TestCollaboratorWorkflow:
         """
         # Setup storage
         storage_path = temp_home / "datamole_storage"
-        save_backend_config(BackendType.LOCAL, str(storage_path))
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path=str(storage_path))
+        global_config.save()
         
         # === Data Owner's Actions ===
         owner_project = tmp_path / "owner_project"
@@ -154,7 +154,9 @@ class TestCollaboratorWorkflow:
         """Test collaborator can skip auto-pull with --no-pull flag."""
         # Setup
         storage_path = temp_home / "datamole_storage"
-        save_backend_config(BackendType.LOCAL, str(storage_path))
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path=str(storage_path))
+        global_config.save()
         
         # Owner creates version
         owner_project = tmp_path / "owner_project"
@@ -192,7 +194,9 @@ class TestBackendSwitching:
         storage1 = temp_home / "storage1"
         storage2 = temp_home / "storage2"
         
-        save_backend_config(BackendType.LOCAL, str(storage1))
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path=str(storage1))
+        global_config.save()
         
         # Create project 1
         project1 = tmp_path / "project1"
@@ -208,12 +212,14 @@ class TestBackendSwitching:
         dtm1.add_version()
         
         # Verify data in storage1
-        config1 = DataMoleFileConfig.load(project1 / ".datamole")
+        config1 = ProjectConfig.load(project1 / ".datamole")
         version1_path = storage1 / config1.project / config1.current_version
         assert version1_path.exists()
         
         # Reconfigure to storage2
-        save_backend_config(BackendType.LOCAL, str(storage2))
+        global_config = GlobalConfig.reload()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path=str(storage2))
+        global_config.save()
         
         # Create project 2
         project2 = tmp_path / "project2"
@@ -229,7 +235,7 @@ class TestBackendSwitching:
         dtm2.add_version()
         
         # Verify data in storage2
-        config2 = DataMoleFileConfig.load(project2 / ".datamole")
+        config2 = ProjectConfig.load(project2 / ".datamole")
         version2_path = storage2 / config2.project / config2.current_version
         assert version2_path.exists()
         
@@ -282,7 +288,7 @@ class TestVersionTracking:
             (data_dir / "file.txt").write_text(f"updated: {msg}")
         
         # Reload config and verify all metadata
-        config = DataMoleFileConfig.load(temp_project / ".datamole")
+        config = ProjectConfig.load(temp_project / ".datamole")
         
         assert len(config.versions) == 3
         for i, version in enumerate(config.versions):

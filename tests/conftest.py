@@ -3,7 +3,8 @@
 import pytest
 import os
 
-from datamole.storage import BackendType, save_backend_config
+from datamole.storage import BackendType
+from datamole.config.global_config import GlobalConfig
 
 
 @pytest.fixture
@@ -33,5 +34,10 @@ def temp_project(tmp_path, temp_home):
 def configured_storage(temp_home):
     """Set up global backend configuration."""
     storage_path = temp_home / "datamole_storage"
-    save_backend_config(BackendType.LOCAL, str(storage_path))
+    
+    # Use GlobalConfig to set up backend
+    global_config = GlobalConfig.initialize_defaults()
+    global_config.set_backend_config(BackendType.LOCAL, storage_path=str(storage_path))
+    global_config.save()
+    
     yield storage_path

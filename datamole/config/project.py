@@ -1,5 +1,5 @@
 """
-Configuration and environment utilities for datamole.
+Project-level configuration for datamole (.datamole file).
 """
 
 import os
@@ -10,19 +10,25 @@ import yaml
 
 
 @dataclass
-class DataMoleFileConfig:
-    """ This dataclass will define the properties that are stored in the .datamole file.
-    The datamole_file contains the metadata about the projects and its tracked versions.
-    It will also include information such as the data_directory that was/is tracked by the file.
-    This would also include a handler for the yaml file that the .datamole file is (the .datamole filetype is for name only and is actually a yaml file).
+class ProjectConfig:
+    """Manages per-project .datamole file configuration.
+    
+    The .datamole file contains metadata about the project and its tracked versions.
+    It stores:
+    - Project name
+    - Data directory path (relative)
+    - Current version hash
+    - Backend type (e.g., "local", "gcs", "s3", "azure")
+    - List of all versions with their metadata
     
     Version structure: List of dicts with keys:
         - hash: version hash string
         - timestamp: ISO 8601 timestamp
         - message: optional description
+        - tag: optional unique tag for easy lookup
     
-    Backend: Stores only the backend type (e.g., "local", "gcs", "s3", "azure").
-             Full backend config (remote_uri, credentials) is loaded from ~/.datamole/config.yaml
+    Note: Backend configuration (remote_uri, credentials) is NOT stored here.
+          It is managed globally in ~/.datamole/config.yaml via GlobalConfig.
     """
 
     project: str
@@ -33,7 +39,7 @@ class DataMoleFileConfig:
     _file_path: Optional[str] = field(default=None, init=False, repr=False)
 
     @classmethod
-    def load(cls, file_path: str) -> 'DataMoleFileConfig':
+    def load(cls, file_path: str) -> 'ProjectConfig':
         """Load configuration from existing .datamole file."""
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"No .datamole file found at {file_path}")
@@ -53,7 +59,7 @@ class DataMoleFileConfig:
     
     @classmethod
     def create(cls, file_path: str, project: str, data_directory: Optional[str] = None, 
-               backend_type: str = "local") -> 'DataMoleFileConfig':
+               backend_type: str = "local") -> 'ProjectConfig':
         """Create a new .datamole file with initial configuration.
         
         Note: Backend configuration (remote_uri, credentials) is not stored in .datamole.

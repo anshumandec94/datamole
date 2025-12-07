@@ -8,15 +8,10 @@ import yaml
 
 from datamole.storage import (
     BackendType,
-    get_datamole_dir,
-    get_config_path,
-    save_backend_config,
-    load_backend_config,
-    initialize_default_config,
     create_storage_backend,
-    LocalStorageBackend,
-    StorageError
+    LocalStorageBackend
 )
+from datamole.config.global_config import GlobalConfig
 
 
 @pytest.fixture
@@ -34,7 +29,11 @@ def clean_datamole_dir(temp_home):
     datamole_dir = temp_home / ".datamole"
     if datamole_dir.exists():
         shutil.rmtree(datamole_dir)
+    # Clear singleton cache to ensure each test starts fresh
+    GlobalConfig._instance = None
     yield datamole_dir
+    # Clean up singleton after test
+    GlobalConfig._instance = None
 
 
 class TestBackendType:
@@ -64,27 +63,28 @@ class TestBackendType:
 class TestGlobalConfig:
     """Tests for global configuration management."""
     
-    def test_get_datamole_dir_creates_directory(self, clean_datamole_dir):
-        """Test that get_datamole_dir creates directory if it doesn't exist."""
+    def test_get_config_dir_creates_directory(self, clean_datamole_dir):
+        """Test that get_config_dir creates directory if it doesn't exist."""
         assert not clean_datamole_dir.exists()
         
-        datamole_dir = get_datamole_dir()
+        config_dir = GlobalConfig.get_config_dir()
         
-        assert datamole_dir.exists()
-        assert datamole_dir.is_dir()
+        assert config_dir == clean_datamole_dir
     
     def test_get_config_path(self, clean_datamole_dir):
         """Test that get_config_path returns correct path."""
-        config_path = get_config_path()
+        config_path = GlobalConfig.get_config_path()
         
         assert config_path.name == "config.yaml"
         assert config_path.parent.name == ".datamole"
     
     def test_save_backend_config_creates_file(self, clean_datamole_dir):
         """Test saving backend config creates config file."""
-        save_backend_config(BackendType.LOCAL, "/path/to/storage")
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path="/path/to/storage")
+        global_config.save()
         
-        config_path = get_config_path()
+        config_path = GlobalConfig.get_config_path()
         assert config_path.exists()
         
         with open(config_path) as f:
@@ -92,80 +92,96 @@ class TestGlobalConfig:
         
         assert "backends" in config
         assert "local" in config["backends"]
-        assert config["backends"]["local"]["remote_uri"] == "/path/to/storage"
+        assert config["backends"]["local"]["storage_path"] == "/path/to/storage"
     
     def test_save_backend_config_with_credentials(self, clean_datamole_dir):
         """Test saving backend config with credentials path."""
-        save_backend_config(
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(
             BackendType.GCS,
-            "gs://bucket/path",
-            credentials_path="/path/to/creds.json"
+            service_account_json="/path/to/creds.json",
+            default_bucket="my-bucket"
         )
+        global_config.save()
         
-        config_path = get_config_path()
+        config_path = GlobalConfig.get_config_path()
         with open(config_path) as f:
             config = yaml.safe_load(f)
         
-        assert config["backends"]["gcs"]["remote_uri"] == "gs://bucket/path"
-        assert config["backends"]["gcs"]["credentials_path"] == "/path/to/creds.json"
+        assert config["backends"]["gcs"]["default_bucket"] == "my-bucket"
+        assert config["backends"]["gcs"]["service_account_json"] == "/path/to/creds.json"
     
     def test_save_backend_config_updates_existing(self, clean_datamole_dir):
         """Test that saving updates existing backend config."""
         # Save initial config
-        save_backend_config(BackendType.LOCAL, "/old/path")
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path="/old/path")
+        global_config.save()
         
         # Update with new path
-        save_backend_config(BackendType.LOCAL, "/new/path")
+        global_config = GlobalConfig.reload()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path="/new/path")
+        global_config.save()
         
-        config_path = get_config_path()
+        config_path = GlobalConfig.get_config_path()
         with open(config_path) as f:
             config = yaml.safe_load(f)
         
-        assert config["backends"]["local"]["remote_uri"] == "/new/path"
+        assert config["backends"]["local"]["storage_path"] == "/new/path"
     
     def test_save_backend_config_preserves_other_backends(self, clean_datamole_dir):
         """Test that saving one backend doesn't affect others."""
         # Save multiple backends
-        save_backend_config(BackendType.LOCAL, "/local/path")
-        save_backend_config(BackendType.GCS, "gs://bucket/path")
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path="/local/path")
+        global_config.set_backend_config(BackendType.GCS, default_bucket="my-bucket")
+        global_config.save()
         
         # Update local
-        save_backend_config(BackendType.LOCAL, "/new/local/path")
+        global_config = GlobalConfig.reload()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path="/new/local/path")
+        global_config.save()
         
-        config_path = get_config_path()
+        config_path = GlobalConfig.get_config_path()
         with open(config_path) as f:
             config = yaml.safe_load(f)
         
-        assert config["backends"]["local"]["remote_uri"] == "/new/local/path"
-        assert config["backends"]["gcs"]["remote_uri"] == "gs://bucket/path"
+        assert config["backends"]["local"]["storage_path"] == "/new/local/path"
+        assert config["backends"]["gcs"]["default_bucket"] == "my-bucket"
     
     def test_load_backend_config_success(self, clean_datamole_dir):
         """Test loading existing backend config."""
-        save_backend_config(BackendType.LOCAL, "/path/to/storage")
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path="/path/to/storage")
+        global_config.save()
         
-        config = load_backend_config(BackendType.LOCAL)
+        loaded_config = GlobalConfig.load()
+        config = loaded_config.get_backend_config(BackendType.LOCAL)
         
-        assert config["remote_uri"] == "/path/to/storage"
+        assert config["storage_path"] == "/path/to/storage"
     
     def test_load_backend_config_no_file(self, clean_datamole_dir):
         """Test loading config when file doesn't exist."""
-        with pytest.raises(StorageError, match="Global config file not found"):
-            load_backend_config(BackendType.LOCAL)
+        with pytest.raises(FileNotFoundError, match="Global datamole configuration not found"):
+            GlobalConfig.load()
     
     def test_load_backend_config_backend_not_configured(self, clean_datamole_dir):
         """Test loading config for unconfigured backend."""
         # Save config for local only
-        save_backend_config(BackendType.LOCAL, "/path")
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path="/path")
+        global_config.save()
         
         # Try to load GCS
-        with pytest.raises(StorageError, match="Backend 'gcs' not configured"):
-            load_backend_config(BackendType.GCS)
+        loaded_config = GlobalConfig.load()
+        with pytest.raises(RuntimeError, match="Backend 'gcs' is not configured"):
+            loaded_config.get_backend_config(BackendType.GCS)
     
     def test_initialize_default_config(self, clean_datamole_dir):
         """Test initializing default config."""
-        initialize_default_config()
+        _ = GlobalConfig.initialize_defaults()
         
-        config_path = get_config_path()
+        config_path = GlobalConfig.get_config_path()
         assert config_path.exists()
         
         with open(config_path) as f:
@@ -173,19 +189,21 @@ class TestGlobalConfig:
         
         assert "backends" in config
         assert "local" in config["backends"]
-        assert "remote_uri" in config["backends"]["local"]
+        assert "storage_path" in config["backends"]["local"]
     
     def test_initialize_default_config_idempotent(self, clean_datamole_dir):
-        """Test that initialize_default_config doesn't overwrite existing config."""
-        # Create custom config
-        save_backend_config(BackendType.LOCAL, "/custom/path")
+        """Test that initialize_defaults creates config if missing."""
+        # Initialize defaults
+        global_config1 = GlobalConfig.initialize_defaults()
         
-        # Try to initialize default
-        initialize_default_config()
+        # Get original storage path
+        original_path = global_config1.get_backend_config(BackendType.LOCAL)["storage_path"]
         
-        # Verify custom config is preserved
-        config = load_backend_config(BackendType.LOCAL)
-        assert config["remote_uri"] == "/custom/path"
+        # Initialize again (loads existing via singleton)
+        global_config2 = GlobalConfig.load()
+        
+        # Verify path is same (config not overwritten)
+        assert global_config2.get_backend_config(BackendType.LOCAL)["storage_path"] == original_path
 
 
 class TestStorageBackendFactory:
@@ -194,24 +212,32 @@ class TestStorageBackendFactory:
     def test_create_local_backend(self, clean_datamole_dir, tmp_path):
         """Test creating local backend from config."""
         storage_path = tmp_path / "storage"
-        save_backend_config(BackendType.LOCAL, str(storage_path))
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path=str(storage_path))
+        global_config.save()
         
-        backend = create_storage_backend(BackendType.LOCAL)
+        loaded_config = GlobalConfig.load()
+        backend_config = loaded_config.get_backend_config(BackendType.LOCAL)
+        backend = create_storage_backend(BackendType.LOCAL, backend_config)
         
         assert isinstance(backend, LocalStorageBackend)
         assert backend.base_path == storage_path
     
     def test_create_backend_no_config(self, clean_datamole_dir):
         """Test creating backend when not configured."""
-        with pytest.raises(StorageError, match="Global config file not found"):
-            create_storage_backend(BackendType.LOCAL)
+        with pytest.raises(FileNotFoundError, match="Global datamole configuration not found"):
+            _ = GlobalConfig.load()
     
     def test_create_backend_not_implemented(self, clean_datamole_dir):
         """Test creating backend types that aren't implemented yet."""
-        save_backend_config(BackendType.GCS, "gs://bucket/path")
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.GCS, default_bucket="my-bucket")
+        global_config.save()
         
+        loaded_config = GlobalConfig.load()
+        backend_config = loaded_config.get_backend_config(BackendType.GCS)
         with pytest.raises(NotImplementedError, match="GCS backend not yet implemented"):
-            create_storage_backend(BackendType.GCS)
+            create_storage_backend(BackendType.GCS, backend_config)
 
 
 class TestLocalStorageBackendSetup:
@@ -220,9 +246,13 @@ class TestLocalStorageBackendSetup:
     def test_setup_creates_project_directory(self, clean_datamole_dir, tmp_path):
         """Test that setup creates project directory."""
         storage_path = tmp_path / "storage"
-        save_backend_config(BackendType.LOCAL, str(storage_path))
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path=str(storage_path))
+        global_config.save()
         
-        backend = create_storage_backend(BackendType.LOCAL)
+        loaded_config = GlobalConfig.load()
+        backend_config = loaded_config.get_backend_config(BackendType.LOCAL)
+        backend = create_storage_backend(BackendType.LOCAL, backend_config)
         backend.setup("test_project")
         
         project_path = storage_path / "test_project"
@@ -232,9 +262,13 @@ class TestLocalStorageBackendSetup:
     def test_setup_verifies_write_access(self, clean_datamole_dir, tmp_path):
         """Test that setup verifies write access."""
         storage_path = tmp_path / "storage"
-        save_backend_config(BackendType.LOCAL, str(storage_path))
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path=str(storage_path))
+        global_config.save()
         
-        backend = create_storage_backend(BackendType.LOCAL)
+        loaded_config = GlobalConfig.load()
+        backend_config = loaded_config.get_backend_config(BackendType.LOCAL)
+        backend = create_storage_backend(BackendType.LOCAL, backend_config)
         
         # Should not raise error
         backend.setup("test_project")
@@ -242,9 +276,13 @@ class TestLocalStorageBackendSetup:
     def test_setup_idempotent(self, clean_datamole_dir, tmp_path):
         """Test that setup can be called multiple times."""
         storage_path = tmp_path / "storage"
-        save_backend_config(BackendType.LOCAL, str(storage_path))
+        global_config = GlobalConfig.initialize_defaults()
+        global_config.set_backend_config(BackendType.LOCAL, storage_path=str(storage_path))
+        global_config.save()
         
-        backend = create_storage_backend(BackendType.LOCAL)
+        loaded_config = GlobalConfig.load()
+        backend_config = loaded_config.get_backend_config(BackendType.LOCAL)
+        backend = create_storage_backend(BackendType.LOCAL, backend_config)
         
         # Call setup twice
         backend.setup("test_project")
