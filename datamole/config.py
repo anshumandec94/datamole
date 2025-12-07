@@ -5,7 +5,6 @@ Configuration and environment utilities for datamole.
 import os
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import List, Optional, Dict
 import yaml
 

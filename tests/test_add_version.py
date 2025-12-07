@@ -4,16 +4,12 @@ Tests for add_version() functionality.
 
 import pytest
 import os
-import shutil
-from pathlib import Path
-import yaml
 
 from datamole.core import DataMole
 from datamole.config import DataMoleFileConfig
 from datamole.storage import (
     BackendType,
     save_backend_config,
-    initialize_default_config,
     StorageError
 )
 

@@ -3,9 +3,7 @@ Tests for global backend configuration and new storage architecture.
 """
 
 import pytest
-import os
 import shutil
-from pathlib import Path
 import yaml
 
 from datamole.storage import (

@@ -1,9 +1,8 @@
 """Unit tests for DataMole.pull() method."""
 
 import pytest
-from pathlib import Path
 import shutil
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from datamole.core import DataMole
 
 
@@ -64,8 +63,6 @@ class TestPullVersionLookup:
         (data_dir / "file1.txt").write_text("version 1")
         dtm.add_version(message="First version")
         
-        current = dtm.config.current_version
-        
         # Modify data
         (data_dir / "file1.txt").write_text("modified")
         
@@ -88,8 +85,6 @@ class TestPullVersionLookup:
         
         (data_dir / "file1.txt").write_text("version 2")
         dtm.add_version(message="Second")
-        
-        current = dtm.config.current_version
         
         # Modify data
         (data_dir / "file1.txt").write_text("modified")

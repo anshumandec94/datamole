@@ -112,11 +112,11 @@ def test_dtmignore_excludes_files(temp_repo):
     dtm = DataMole()
     dtm.init()
     # Create data dir with files, some to ignore
-    data_dir = create_data_dir(temp_repo, files=["a.txt", "b.tmp", "ignoreme.txt"])
+    create_data_dir(temp_repo, files=["a.txt", "b.tmp", "ignoreme.txt"])
     create_dtmignore(temp_repo, patterns=["*.tmp", "ignoreme.txt"])
     # This test will need dtm.add_version to respect .dtmignore in the future
     # For now, just check that .dtmignore exists and is readable
     assert os.path.exists(os.path.join(temp_repo, ".dtmignore"))
     with open(os.path.join(temp_repo, ".dtmignore")) as f:
-        lines = [l.strip() for l in f if l.strip()]
+        lines = [line.strip() for line in f if line.strip()]
     assert "*.tmp" in lines and "ignoreme.txt" in lines

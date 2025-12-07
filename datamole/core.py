@@ -144,14 +144,14 @@ class DataMole:
             backend_type=backend
         )
         
-        print(f"Created .datamole file with:")
+        print("Created .datamole file with:")
         print(f"  - data_directory: {data_dir}")
         print(f"  - backend_type: {backend}")
         
         print(f"\nData will be tracked in: {data_dir}/")
         print("\nNext steps:")
         print(f"  1. Add your data to {data_dir}/")
-        print(f"  2. Run 'dtm add-version' to create first version")
+        print("  2. Run 'dtm add-version' to create first version")
 
     def config_backend(self, backend: str, remote_uri: str, 
                       credentials_path: Optional[str] = None) -> None:
@@ -180,7 +180,7 @@ class DataMole:
         print(f"  - remote_uri: {remote_uri}")
         if credentials_path:
             print(f"  - credentials_path: {credentials_path}")
-        print(f"\nThis backend can now be used across all datamole projects.")
+        print("\nThis backend can now be used across all datamole projects.")
 
     def add_version(self, message: Optional[str] = None, tag: Optional[str] = None):
         """Create and track a new version.
@@ -266,7 +266,7 @@ class DataMole:
         print(f"Uploading to {config.backend_type} storage...")
         try:
             storage_backend.upload_directory(data_path, remote_path)
-            print(f"Upload complete.")
+            print("Upload complete.")
         except StorageError as e:
             # Upload failed - do NOT modify .datamole
             raise RuntimeError(
@@ -406,7 +406,7 @@ class DataMole:
         print(f"Downloading from {config.backend_type} storage...")
         try:
             storage_backend.download_directory(remote_path, data_path)
-            print(f"Download complete.")
+            print("Download complete.")
         except StorageError as e:
             raise RuntimeError(
                 f"Failed to download data from remote storage: {e}\n"

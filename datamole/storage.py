@@ -279,7 +279,6 @@ class LocalStorageBackend(StorageBackend):
 
 def get_datamole_dir() -> Path:
     """Get the datamole configuration directory (~/.datamole)."""
-    import os
     home = Path(os.environ.get('HOME', str(Path.home())))
     datamole_dir = home / ".datamole"
     datamole_dir.mkdir(parents=True, exist_ok=True)
@@ -398,7 +397,7 @@ def create_storage_backend(backend_type: BackendType) -> StorageBackend:
     # Load backend config from global config
     backend_config = load_backend_config(backend_type)
     remote_uri = backend_config["remote_uri"]
-    credentials_path = backend_config.get("credentials_path")
+    # credentials_path = backend_config.get("credentials_path")  # TODO: Use when implementing cloud backends
     
     if backend_type == BackendType.LOCAL:
         return LocalStorageBackend(remote_uri)

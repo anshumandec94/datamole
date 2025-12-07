@@ -2,7 +2,6 @@
 
 import pytest
 import os
-from pathlib import Path
 
 from datamole.storage import BackendType, save_backend_config
 

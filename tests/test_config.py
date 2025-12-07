@@ -54,7 +54,7 @@ def test_config_save_and_load(temp_dir):
     config_path = os.path.join(temp_dir, ".datamole")
     
     # Create and save
-    config = DataMoleFileConfig.create(
+    DataMoleFileConfig.create(
         file_path=config_path,
         project="test_project",
         data_directory="data"

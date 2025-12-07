@@ -3,16 +3,10 @@ Tests for storage backend functionality.
 """
 
 import pytest
-import os
 import shutil
-from pathlib import Path
 from datamole.storage import (
-    StorageBackend, 
     LocalStorageBackend, 
-    StorageError,
-    BackendType,
-    create_storage_backend,
-    save_backend_config
+    StorageError
 )
 
 

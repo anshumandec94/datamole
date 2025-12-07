@@ -7,15 +7,12 @@ These tests verify end-to-end functionality across multiple components.
 import pytest
 import os
 import shutil
-from pathlib import Path
-import yaml
 
 from datamole.core import DataMole
 from datamole.config import DataMoleFileConfig
 from datamole.storage import (
     BackendType,
     save_backend_config,
-    create_storage_backend,
 )
 
 

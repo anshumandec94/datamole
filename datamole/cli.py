@@ -5,7 +5,6 @@ CLI for datamole - simple data versioning tool.
 import argparse
 import sys
 from datamole.core import DataMole
-from datamole.storage import BackendType
 
 
 def main():
@@ -89,13 +88,13 @@ def main():
     )
 
     # dtm list-versions
-    list_parser = subparsers.add_parser(
+    subparsers.add_parser(
         'list-versions',
         help='List all versions'
     )
 
     # dtm current-version
-    current_parser = subparsers.add_parser(
+    subparsers.add_parser(
         'current-version',
         help='Show current version'
     )
